@@ -10,7 +10,7 @@ class SmartWalletManager {
   private filePath: string;
 
   constructor() {
-    this.filePath = path.join(__dirname, "smartWallet/smartWalletAddress.json");
+    this.filePath = path.join(__dirname, "/smartWalletAddress.json");
   }
 
   async addAddress(
@@ -64,8 +64,13 @@ class SmartWalletManager {
   }
 
   async getAddress(): Promise<Record<string, string>> {
-    const data = await readFile(this.filePath, "utf-8");
-    return JSON.parse(data);
+    try {
+      const data = await readFile(this.filePath, "utf-8");
+      return JSON.parse(data);
+    } catch (error) {
+      console.error("Error in reading smartWalletAddress", error);
+      throw error;
+    }
   }
 
   async getAddressArray(): Promise<string[]> {

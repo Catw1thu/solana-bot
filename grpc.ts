@@ -36,6 +36,7 @@ class SubscriptionManager {
     try {
       if (!this.stream) {
         this.stream = await this.client.subscribe();
+        await this.setupStreamEventListener(this.stream);
         await this.startPingPong(this.stream);
       }
       await this.updateSubscription();
@@ -117,25 +118,26 @@ class SubscriptionManager {
       }
     };
     this.pingInterval = setInterval(sendPing, 5000);
-    await sendPing();
+    return sendPing();
   }
 
   private async sendPing(
     stream: ClientDuplexStream<SubscribeRequest, SubscribeUpdate>
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      stream.write({
-        accounts: {},
-        slots: {},
-        transactions: {},
-        transactionsStatus: {},
-        blocks: {},
-        blocksMeta: {},
-        entry: {},
-        accountsDataSlice: [],
-        commitment: undefined,
-        ping: { id: 1 },
-      }),
+      stream.write(
+        {
+          accounts: {},
+          slots: {},
+          transactions: {},
+          transactionsStatus: {},
+          blocks: {},
+          blocksMeta: {},
+          entry: {},
+          accountsDataSlice: [],
+          commitment: undefined,
+          ping: { id: 1 },
+        },
         (error: Error) => {
           if (error) {
             logger.error("[Ping error:]", error);
@@ -143,7 +145,8 @@ class SubscriptionManager {
           } else {
             resolve();
           }
-        };
+        }
+      );
     });
   }
 
@@ -170,10 +173,12 @@ class SubscriptionManager {
     logger.info("[Setting up stream event listener]");
     return new Promise((resolve, reject) => {
       stream.on("data", async (data: SubscribeUpdate) => {
-        try {
-          await handleData(data);
-        } catch (error) {
-          logger.error("[Error in handling data:]", error);
+        if (data.transaction) {
+          try {
+            await handleData(data);
+          } catch (error) {
+            logger.error("[Error in handling data:]", error);
+          }
         }
       });
       stream.on("error", (error: Error) => {
