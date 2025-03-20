@@ -6,11 +6,11 @@ import Client, {
 import type { ClientDuplexStream } from "@grpc/grpc-js";
 import { GRPC_URL, PUMP_FUN_PROGRAM_ID } from "./config/config";
 import { logger } from "./logger/logger";
-import { smartWalletManager } from "./smartWallet/smartWalletManager";
-
-// TODO:
-// 1.流事件处理器
-// 2.聪明钱包列表监听
+import {
+  smartWalletManager,
+  smartWalletEvents,
+} from "./smartWallet/smartWalletManager";
+import { handleData } from "./strategy/handleData";
 
 class SubscriptionManager {
   private client: Client;
@@ -23,6 +23,7 @@ class SubscriptionManager {
     this.client = new Client(GRPC_URL, undefined, {
       "grpc.max_receive_message_length": 16 * 1024 * 1024,
     });
+    this.setupAddressEventListener();
   }
 
   async setupStream(): Promise<void> {
@@ -144,6 +145,72 @@ class SubscriptionManager {
           }
         };
     });
+  }
+
+  private async setupAddressEventListener() {
+    smartWalletEvents.on("SmartWalletAddresses updated.", async () => {
+      try {
+        if (this.isUpdating) {
+          logger.info("[Setup already in progress, skipping...]");
+          return;
+        }
+        logger.info("[SmartWalletAddresses updated, updating subscription...]");
+        await this.updateSubscription();
+        logger.info("[Subscription updated successfully.]");
+      } catch (error) {
+        logger.error("[Error in updating subscription:]", error);
+        this.isUpdating = false;
+      }
+    });
+  }
+
+  private async setupStreamEventListener(
+    stream: ClientDuplexStream<SubscribeRequest, SubscribeUpdate>
+  ): Promise<void> {
+    logger.info("[Setting up stream event listener]");
+    return new Promise((resolve, reject) => {
+      stream.on("data", async (data: SubscribeUpdate) => {
+        try {
+          await handleData(data);
+        } catch (error) {
+          logger.error("[Error in handling data:]", error);
+        }
+      });
+      stream.on("error", (error: Error) => {
+        logger.error("[Stream error:]", error);
+        this.handleStreamError();
+      });
+      stream.on("end", () => {
+        logger.info("[Stream end]");
+        this.handleStreamEnd();
+      });
+      stream.on("close", () => {
+        logger.info("[Stream close]");
+        this.handleStreamEnd();
+      });
+      resolve();
+    });
+  }
+
+  private async handleStreamError() {
+    logger.info("[Handling stream error]");
+    this.stream = null;
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+    if (!this.isUpdating) {
+      await this.setupStream().catch(console.error);
+    }
+  }
+
+  private async handleStreamEnd() {
+    logger.info("[Handling stream end]");
+    this.stream = null;
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
   }
 }
 
