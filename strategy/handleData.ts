@@ -31,6 +31,7 @@ export async function handleData(data: SubscribeUpdate) {
   💎 代币地址: ${tokenMintAccount}
   🎯 交易详情
   └─ 时间: ${formatDate()}
+  └─ 延迟: ${Date.now() - new Date(data.createdAt!).getTime()}ms
   🌐 浏览器查看: https://solscan.io/tx/${signature}`);
 }
 
