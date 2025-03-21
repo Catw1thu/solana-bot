@@ -1,6 +1,8 @@
 import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
 import type { SubscribeUpdate } from "@triton-one/yellowstone-grpc";
 import type { TokenBalance } from "@triton-one/yellowstone-grpc/dist/grpc/solana-storage";
+import { buyToken } from "./buyToken";
+import { PublicKey } from "@solana/web3.js";
 
 export async function handleData(data: SubscribeUpdate) {
   let type: "BUY" | "SELL" = "BUY";
@@ -31,8 +33,16 @@ export async function handleData(data: SubscribeUpdate) {
   💎 代币地址: ${tokenMintAccount}
   🎯 交易详情
   └─ 时间: ${formatDate()}
-  └─ 延迟: ${Date.now() - new Date(data.createdAt!).getTime()}ms
+  └─ 监听延迟: ${Date.now() - new Date(data.createdAt!).getTime()}ms
   🌐 浏览器查看: https://solscan.io/tx/${signature}`);
+  if (type === "BUY") {
+    await buyToken(
+      new PublicKey(tokenMintAccount!),
+      0.00001,
+      10,
+      new Date(data.createdAt!).getTime()
+    );
+  }
 }
 
 function getTokenMintAccount(preToken: TokenBalance[]) {
